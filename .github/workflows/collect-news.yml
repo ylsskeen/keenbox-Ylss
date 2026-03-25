@@ -1,0 +1,50 @@
+name: 每日资安新闻收集
+
+# 触发条件：每天 UTC 01:00 执行（台湾时间 09:00）
+on:
+  schedule:
+    - cron: '0 1 * * *'  # UTC 01:00 = 台湾时间 09:00
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  collect-news:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置 Python 环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+    
+    - name: 安装依赖
+      run: |
+        pip install requests beautifulsoup4 lxml
+    
+    - name: 收集资安新闻
+      env:
+        SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+        SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+        SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+        RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+      run: |
+        python collect_news.py
+    
+    - name: 上传新闻数据
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-news
+        path: security_news_*.json
+        retention-days: 30
+    
+    - name: 提交到仓库（可选）
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add security_news_*.json || true
+        git commit -m "📰 更新资安新闻 $(date +'%Y-%m-%d')" || true
+        git push || true
